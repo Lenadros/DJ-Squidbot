@@ -14,8 +14,12 @@ namespace DiscordSharp_Starter
 		public const int ERRORCODE_MALFORMED_COMMAND = 0;
 		public const int ERRORCODE_FORBIDDEN = 1;
 		
+		public const String COMMAND_SAY = "!say";
 		public const String COMMAND_GAME_CHANGE = "!setname";
+		public const String COMMAND_HELP = "!help";
 		public const String COMMAND_QUIT = "!quit";
+
+		public const String HELP_STR = "Uhh, I aint got much help to give but here are the valid commands: !say, !setname, !help, !quit";
 
 		public static bool mbShouldContinue = true;
 
@@ -52,7 +56,7 @@ namespace DiscordSharp_Starter
 			});
 		}
 
-		public static void UpdateLoop()
+		public async static void UpdateLoop()
 		{
 			bool bContinue = true;
 			while(bContinue)
@@ -60,7 +64,7 @@ namespace DiscordSharp_Starter
 				bContinue = Tick();
 			}
 			Console.WriteLine("-Closing-");
-			mClient.Disconnect();
+			await mClient.Disconnect();
 		}
 
 		public static bool Tick()
@@ -71,7 +75,7 @@ namespace DiscordSharp_Starter
 			return mbShouldContinue;
 		}
 
-		public static void RecieveCommand(String args, bool bLocalAuth)
+		public async static void RecieveCommand(String args, bool bLocalAuth)
 		{
 			// First, determine what the command is
 			String[] elements = args.Split(' ');
@@ -83,9 +87,23 @@ namespace DiscordSharp_Starter
 
 			switch (command)
 			{
+				case COMMAND_SAY:
+					if (bLocalAuth)
+					{
+						String saystr = args.Substring(command.Length + 1);
+						if (mActiveChannel != null)
+							await mActiveChannel.SendMessage(saystr);
+					}
+					else
+						LogError(ERRORCODE_FORBIDDEN, args);
+					break;
 				case COMMAND_GAME_CHANGE:
 					String gameName = args.Substring(command.Length + 1);
 					mClient.SetGame(gameName);
+					break;
+				case COMMAND_HELP:
+					if (mActiveChannel != null)
+						await mActiveChannel.SendMessage(HELP_STR);
 					break;
 				case COMMAND_QUIT:
 					if (bLocalAuth)
