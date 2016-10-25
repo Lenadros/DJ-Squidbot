@@ -9,63 +9,112 @@ namespace DiscordSharp_Starter
 {
     public class Program
     {
-		public static List<String> mMessageQueue = new List<String>();
+		public static DiscordClient mClient;
+		
+		public const int ERRORCODE_MALFORMED_COMMAND = 0;
+		public const int ERRORCODE_FORBIDDEN = 1;
+		
+		public const String COMMAND_GAME_CHANGE = "!setname";
+		public const String COMMAND_QUIT = "!quit";
+
+		public static bool mbShouldContinue = true;
+
+		public static Channel mActiveChannel = null;
 
         public static void Main(string[] args)
         {
 			Console.WriteLine("-Begin DJ SquidBot-");
-			Console.WriteLine("-Type /help-");
+			Console.WriteLine("-Type !help-");
 			
-			var client = new DiscordClient();
+			mClient = new DiscordClient();
 
-			client.MessageReceived += async (s, e) =>
+			mClient.MessageReceived += async (s, e) =>
 			{
 				if (!e.Message.IsAuthor)
 				{
-					String msg = e.Message.Text;
-					String returnMsg = "";
-
-					if (msg == "!hello")
-						returnMsg = "Yo, whats up " + e.Message.User.Name;
-					if (msg.IndexOf("!multiply") == 0)
-					{
-						String data = msg.Substring(10);
-						String[] datas = data.Split(' ');
-						if (datas.Length == 2)
-							returnMsg = (int.Parse(datas[0]) * int.Parse(datas[1])).ToString();
-					}
-					if (returnMsg != "")
-						await e.Channel.SendMessage(returnMsg);
+					if (e.Message.Text == "!here")
+						mActiveChannel = e.Message.Channel;
+					else
+						RecieveCommand(e.Message.Text, false);
+					
+					// Lol, not sure about this async stuff, not sure how to make it not complain about not having a nested await call...
+					// Leave this here for now.
+					if (false)
+						await e.Channel.SendMessage("");
 				}
 			};
-
-			/*client.Ready += async (s, e) =>
-			{
-				if (mMessageQueue.Count != 0)
-					await client.SetGame(mMessageQueue[0]);
-			});*/
 			
-			client.ExecuteAndWait(async () => 
+			mClient.ExecuteAndWait(async () => 
 			{
-				await client.Connect("MjQwMzExMzE4Njg5NjExNzc4.CvBe5A.tmLgxblHhxZi3DiNh81YHL6XG-s", TokenType.Bot);
+				await mClient.Connect("MjQwMzExMzE4Njg5NjExNzc4.CvBe5A.tmLgxblHhxZi3DiNh81YHL6XG-s", TokenType.Bot);
+
+				UpdateLoop();
 			});
+		}
 
-
+		public static void UpdateLoop()
+		{
 			bool bContinue = true;
 			while(bContinue)
 			{
-				String command = Console.ReadLine();
-
-				if (command.IndexOf("!announce") == 0)
-				{
-					String data = command.Substring("!announce".Length + 1);
-					String[] datas = data.Split(' ');
-
-					mMessageQueue.Add(datas[0]);
-
-					client.SetGame(datas[0]);
-				}
+				bContinue = Tick();
 			}
+			Console.WriteLine("-Closing-");
+			mClient.Disconnect();
+		}
+
+		public static bool Tick()
+		{
+			String input = Console.ReadLine();
+			RecieveCommand(input, true);
+
+			return mbShouldContinue;
+		}
+
+		public static void RecieveCommand(String args, bool bLocalAuth)
+		{
+			// First, determine what the command is
+			String[] elements = args.Split(' ');
+			String command = elements[0];
+
+			// Check to make sure this is a properly formatted command
+			if (command.IndexOf("!") != 0)
+				return;
+
+			switch (command)
+			{
+				case COMMAND_GAME_CHANGE:
+					String gameName = args.Substring(command.Length + 1);
+					mClient.SetGame(gameName);
+					break;
+				case COMMAND_QUIT:
+					if (bLocalAuth)
+						mbShouldContinue = false;
+					else
+						LogError(ERRORCODE_FORBIDDEN, args);
+					break;
+				default:
+					LogError(ERRORCODE_MALFORMED_COMMAND, args);
+					break;
+			}
+		}
+
+		public async static void LogError(int errorCode, String msg)
+		{
+			String errorOutput = "";
+			switch(errorCode)
+			{
+				case ERRORCODE_MALFORMED_COMMAND:
+					errorOutput = "Malformed Command: " + msg;
+					break;
+				case ERRORCODE_FORBIDDEN:
+					errorOutput = "Forbidden: " + msg;
+					break;
+			}
+
+			Console.Out.WriteLine(errorOutput);
+			if (mActiveChannel != null)
+				await mActiveChannel.SendMessage(errorOutput);
 		}
     }
 }
